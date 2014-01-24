@@ -1,7 +1,7 @@
 //create by grunt-jsc
 (function(){
 var mods = [],version = parseFloat(seajs.version);
-define('lib/base/index',[],function(require,exports,module){
+define({0},{1},function(require,exports,module){
 
 	var uri		= module.uri || module.id,
 		m		= uri.split('?')[0].match(/^(.+\/)([^\/]*?)(?:\.js)?$/i),
@@ -30,17 +30,3 @@ define.pack = function(){
 	(version > 1.0) || define.apply(null,arguments);
 };
 })();
-
-define.pack("./index", [], function(require, exports, module) {
-    function Base() {}
-    Base.prototype = {
-        init: function() {
-            this.label = "base library";
-            console.log(this.label);
-        },
-        print: function(str) {
-            console.log(str);
-        }
-    };
-    return Base;
-});

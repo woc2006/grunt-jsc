@@ -12,67 +12,101 @@ var fs = require('fs');
 var path = require('path');
 
 module.exports = function(grunt) {
-	var filterReg = /\.(js|html|htm)$/;
+	var wrapBefore = grunt.file.read('./tasks/seajs.before.wrap');
+	var base;
+
+	var getJSOutputName = function(path){
+		//replace src* with index.js
+		return path.replace(/(src\/?.*)$/,'index.js');
+	}
 
 	var getIndexName = function(path){
-		//把src后面部分换成index.js
-		return path.replace(/(src\/?.*)$/,'index.js');
+		//replace src* with index and remove base
+		path = path.replace(/(src\/?.*)/,'index').replace(base,'');
+		if(path.charAt(0) == '/'){
+			path = path.substring(1);
+		}
+		return path;
+	}
+
+	var getFileExt = function(file){
+		var idx = file.indexOf('.');
+		if(idx<0) return;
+		var ret = {
+			name: file.substring(0,idx),
+			ext: file.substring(idx+1)
+		}
+		return ret;
+	}
+
+	var buildJSFile = function(abs,file){
+		var toplevel = uglify.parse(grunt.file.read(abs));
+		var req = [];
+		var def = null;
+		toplevel.walk(new uglify.TreeWalker(function(node){
+			if(node instanceof uglify.AST_Call){
+				if(node.expression.name == 'require'){
+					req.push(node.args[0].value);
+				}else if(node.expression.name == 'define'){
+					def = node;
+				}
+			}
+		}));
+		if(!def){
+			grunt.log.writeln('wrong in '+path);
+		}else{
+			var defFun = null;
+			for(var i=0;i<def.args.length;i++){
+				if(def.args[i] instanceof  uglify.AST_Function){
+					defFun = def.args[i];
+					break;
+				}
+			}
+			def.args = [];
+			def.args.push(new uglify.AST_String({
+				value: './'+file
+			}));
+			var _req = [];
+			for(var i=0;i<req.length;i++){
+				_req.push(new uglify.AST_String({
+					value: req[i]
+				}))
+			}
+			def.args.push(new uglify.AST_Array({
+				elements: _req
+			}));
+			def.args.push(defFun);
+			def.expression.name = 'define.pack';  //replace define
+		}
+		return {
+			req : req,
+			content: toplevel.print_to_string({ beautify: true })
+		}
 	}
 
 	var build = function(path, parent){
 		var result = [];
+		var req = {};
 		try{
 			//get all files in path
 			grunt.file.recurse(path, function(abs,rootdir,subdir,file){
-				if(!filterReg.exec(file)){
-					return;
+				var _file = getFileExt(file);
+				if(_file.ext == 'js'){
+					var ret = buildJSFile(abs,_file.name);
+					result.push(ret.content);
+					for(var i=0;i<ret.req.length;i++){
+						req[ret.req[i]] = true;
+					}
 				}
-
-				var toplevel = uglify.parse(grunt.file.read(abs));
-				var req = [];
-				var def = null;
-				toplevel.walk(new uglify.TreeWalker(function(node){
-					if(node instanceof uglify.AST_Call){
-						if(node.expression.name == 'require'){
-							req.push(node.args[0].value);
-						}else if(node.expression.name == 'define'){
-							def = node;
-						}
-					}
-				}));
-				if(!def){
-					grunt.log.writeln('wrong in '+path);
-				}else{
-					var defFun = null;
-					for(var i=0;i<def.args.length;i++){
-						if(def.args[i] instanceof  uglify.AST_Function){
-							defFun = def.args[i];
-							break;
-						}
-					}
-					def.args = [];
-					def.args.push(new uglify.AST_String({
-						value: file.substring(file, file.indexOf('.'))
-					}));
-					var _req = [];
-					for(var i=0;i<req.length;i++){
-						_req.push(new uglify.AST_String({
-							value: req[i]
-						}))
-					}
-					def.args.push(new uglify.AST_Array({
-						elements: _req
-					}));
-					def.args.push(defFun);
-					def.expression.name = 'define.pack';  //暴力换名字
-				}
-				result.push(toplevel.print_to_string({ beautify: true }));
 			})
 		}catch(e){
 			grunt.log.write(e);
 		}
-		var content = result.join('\r\n');
-		grunt.file.write(getIndexName(path),content);
+		var before = wrapBefore;
+		before = before.replace('{0}','\''+getIndexName(path)+'\'').replace('{1}',JSON.stringify(Object.keys(req)));
+		result.unshift(before);
+		var content = result.join('\r\n\r\n');
+		grunt.file.write(getJSOutputName(path),content);
 	}
 
 	var walkDir = function(dir) {
@@ -94,43 +128,19 @@ module.exports = function(grunt) {
 	}
 
 	grunt.registerMultiTask('jsc', 'grunt version of jsc', function() {
-		// Merge task-specific and/or target-specific options with these defaults.
 		var options = this.options({
 			punctuation: '.',
 			separator: ', '
 		});
-
-		var path = this.files[0].src[0];
-		if(path){
-			walkDir(path);
-		}else{
-			grunt.log.writeln('path not found');
+		var path = options.path;
+		base = options.base;
+		if(!path.length || !base){
+			grunt.log.writeln('path no found');
+			return;
 		}
-//    // Iterate over all specified file groups.
-//    this.files.forEach(function(f) {
-//      // Concat specified files.
-//      var src = f.src.filter(function(filepath) {
-//        // Warn on and remove invalid source files (if nonull was set).
-//        if (!grunt.file.exists(filepath)) {
-//          grunt.log.warn('Source file "' + filepath + '" not found.');
-//          return false;
-//        } else {
-//          return true;
-//        }
-//      }).map(function(filepath) {
-//        // Read file source.
-//        return grunt.file.read(filepath);
-//      }).join(grunt.util.normalizelf(options.separator));
-//
-//      // Handle options.
-//      src += options.punctuation;
-//
-//      // Write the destination file.
-//      grunt.file.write(f.dest, src);
-//
-//      // Print a success message.
-//      grunt.log.writeln('File "' + f.dest + '" created.');
-//    });
+		for(var i=0;i<path.length;i++){
+			walkDir(path[i]);
+		}
 	});
 
 };
