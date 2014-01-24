@@ -9,7 +9,9 @@
 'use strict';
 var uglify = require('uglify-js');
 var fs = require('fs');
-var path = require('path');
+var Path = require('path');
+var vm = require('vm');
+var util = require('util');
 
 module.exports = function(grunt) {
 	var wrapBefore = grunt.file.read('./tasks/seajs.before.wrap');
@@ -41,6 +43,18 @@ module.exports = function(grunt) {
 
 	var replaceString = function(str, begin, end, replacement) {
 		return str.substr(0, begin) + replacement + str.substr(end);
+	}
+
+	var processConfig = function(abs){
+		var content = grunt.file.read(abs);
+		var ret = null;
+		var context = {
+			define: function(factory){
+				ret = factory();
+			}
+		}
+		vm.runInNewContext(content, context);
+		return ret;
 	}
 
 	var processJSFile = function(abs,file){
@@ -154,7 +168,11 @@ module.exports = function(grunt) {
 			//parse config and apply filter
 
 			if(hasConfig){
-
+				var abs = Path.resolve(path+'/_config.js');
+				var conf = processConfig(abs);
+				if(conf.js && conf.js.sort){
+					fileJS = conf.js.sort(fileJS);
+				}
 			}
 			for(var i=0;i<fileJS.length;i++){
 				var _file = getFileExt(fileJS[i]);
