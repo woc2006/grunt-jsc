@@ -1,0 +1,2 @@
+define.pack("./tmpl",[],function(require,exports,module){
+    var tmpl = {

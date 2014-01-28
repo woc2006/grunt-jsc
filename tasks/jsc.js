@@ -11,11 +11,15 @@ var uglify = require('uglify-js');
 var fs = require('fs');
 var Path = require('path');
 var vm = require('vm');
-var util = require('util');
+var Log = require('./logger');
 
 module.exports = function(grunt) {
 	var wrapBefore = grunt.file.read('./tasks/seajs.before.wrap');
+	var tplBefore = grunt.file.read('./tasks/tpl.before.wrap');
+	var tplAfter = grunt.file.read('./tasks/tpl.after.wrap');
+	var wrapDepend = grunt.file.read('./tasks/depend.wrap');
 	var base;
+	var dependencies = {};
 
 	var getJSOutputName = function(path){
 		//replace src* with index.js
@@ -102,6 +106,11 @@ module.exports = function(grunt) {
 		}
 	}
 
+	var processTplFile = function(abs){
+		var content = grunt.file.read(abs);
+
+	}
+
 	//process single js file, add dependencies and module name
 	var buildSingleJSFile = function(abs, file){
 		var _file = getFileExt(file);
@@ -139,11 +148,6 @@ module.exports = function(grunt) {
 		grunt.file.write(abs,content);
 	}
 
-	var buildTplFile = function(abs, file){
-
-
-	}
-
 	//walk through directory, build each js and tpl
 	var build = function(path){
 		var cacheJS = [];
@@ -173,6 +177,9 @@ module.exports = function(grunt) {
 				if(conf.js && conf.js.sort){
 					fileJS = conf.js.sort(fileJS);
 				}
+				if(conf.tmpl && conf.tmpl.sort){
+					fileTpl = conf.tmpl.sort(fileTpl);
+				}
 			}
 			for(var i=0;i<fileJS.length;i++){
 				var _file = getFileExt(fileJS[i]);
@@ -182,11 +189,26 @@ module.exports = function(grunt) {
 					req[ret.req[j]] = true;
 				}
 			}
+
+			for(var i=0;i<fileTpl.length;i++){
+				var ret = processTplFile(path+'/'+fileTpl[i]);
+				cacheTpl.push(ret.content);
+			}
+			var id = getIndexName(path);
+			var _req = Object.keys(req);
 			var before = wrapBefore;
-			before = before.replace('{0}','\''+getIndexName(path)+'\'').replace('{1}',JSON.stringify(Object.keys(req)));
+			before = before.replace('{0}','\''+id+'\'').replace('{1}',JSON.stringify(_req));
 			cacheJS.unshift(before);
-			var content = cacheJS.join('\r\n\r\n');
+			if(cacheTpl.length){
+				cacheTpl.unshift(tplBefore);
+				cacheTpl.push(tplAfter);
+			}
+
+			var content = cacheJS.join('\r\n\r\n') + cacheTpl.join('\r\n\r\n');
 			grunt.file.write(getJSOutputName(path),content);
+
+			//used for deep scan
+			dependencies[id] = _req;
 		}catch(e){
 			grunt.log.write(e);
 		}
@@ -214,18 +236,22 @@ module.exports = function(grunt) {
 	}
 
 	grunt.registerMultiTask('jsc', 'grunt version of jsc', function() {
-		var options = this.options({
-			punctuation: '.',
-			separator: ', '
-		});
+		var options = this.options({});
 		var path = options.path;
 		base = options.base;
+		Log.logs('{0}a{1}a{2}',[123,321,456]);
+		return;
 		if(!path.length || !base){
 			grunt.log.writeln('path no found');
 			return;
 		}
 		for(var i=0;i<path.length;i++){
 			walkDir(path[i]);
+		}
+		//output dependencies
+		if(options.genDepend){
+			var content = wrapDepend.replace('{0}',JSON.stringify(dependencies))
+			grunt.file.read(base+'dependencies.js', content);
 		}
 	});
 

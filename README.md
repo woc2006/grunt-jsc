@@ -26,28 +26,23 @@ In your project's Gruntfile, add a section named `jsc` to the data object passed
 grunt.initConfig({
   jsc: {
     options: {
-      // Task-specific options go here.
+      base:'',
+      all:true
     },
-    your_target: {
-      // Target-specific file lists and/or options go here.
-    },
+    files:['']
   },
 });
 ```
 
 ### Options
 
-#### options.separator
-Type: `String`
-Default value: `',  '`
+####base
 
-A string value that is used to do something with whatever.
+Base path of the project, use ``./`` for the current directory.
 
-#### options.punctuation
-Type: `String`
-Default value: `'.'`
+####all
 
-A string value that is used to do something else with whatever else.
+Process all files in giving directories.
 
 ### Usage Examples
 
@@ -58,9 +53,7 @@ In this example, the default options are used to do something with whatever. So 
 grunt.initConfig({
   jsc: {
     options: {},
-    files: {
-      'dest/default_options': ['src/testing', 'src/123'],
-    },
+
   },
 });
 ```

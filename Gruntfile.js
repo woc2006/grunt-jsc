@@ -15,7 +15,8 @@ module.exports = function(grunt) {
 		jsc:{
 			options:{
 				base:'./demo',
-				path:['./demo']
+				path:['./demo/module','./demo/lib'],
+				genDepend: true
 			},
 			all: true
 		}
