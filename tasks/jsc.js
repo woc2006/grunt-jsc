@@ -239,8 +239,6 @@ module.exports = function(grunt) {
 		var options = this.options({});
 		var path = options.path;
 		base = options.base;
-		Log.logs('{0}a{1}a{2}',[123,321,456]);
-		return;
 		if(!path.length || !base){
 			grunt.log.writeln('path no found');
 			return;
